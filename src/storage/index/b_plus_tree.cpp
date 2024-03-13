@@ -1,4 +1,5 @@
 #include <string>
+#include <algorithm>
 
 #include "common/exception.h"
 #include "common/logger.h"
@@ -32,7 +33,46 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
-  return false;
+  // get the page's data of root node
+  page_id_t page_id = root_page_id_;
+  Page *page_ptr = buffer_pool_manager_->FetchPage(page_id);
+  InternalPage *data_ptr = reinterpret_cast<InternalPage *>(page_ptr->GetData());
+  // get left node 
+  while (!data_ptr->IsLeafPage()) {
+    int l = 1, r = data_ptr->GetSize();
+    while (l < r) {
+        int m = l + r >> 1;
+        if (comparator_(key ,data_ptr->KeyAt(m))) r = m;
+        else l = m + 1;
+    }
+    // get child node id
+    page_id = data_ptr->ValueAt(l - 1);
+    page_ptr = buffer_pool_manager_->FetchPage(page_id);
+    data_ptr = reinterpret_cast<InternalPage *>(page_ptr->GetData());
+    // unpin the parent node page
+    buffer_pool_manager_->UnpinPage(data_ptr->GetParentPageId(), false);
+  }
+  // switch to leafpage
+  data_ptr = reinterpret_cast<LeafPage *>(page_ptr->GetData());
+  // find target leafpage
+  int l = 1, r = data_ptr->GetSize();
+  while (l < r) {
+    int m = l + r >> 1;
+    if (comparator_(key ,data_ptr->KeyAt(m)) == 1) {
+      r = m;
+    }
+    else {
+      l = m + 1;
+    }
+  }
+  // if not find the target leafpage
+  if (comparator_(key ,data_ptr->KeyAt(l - 1)) != 0) {
+    buffer_pool_manager_->UnpinPage(data_ptr->GetPageId(), false);
+    return false;
+  }
+  result->push_back(data_ptr->ValueAt(l - 1));
+  buffer_pool_manager_->UnpinPage(data_ptr->GetPageId(), false);
+  return true;
 }
 
 /*****************************************************************************
@@ -47,7 +87,7 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
-  return false;
+
 }
 
 /*****************************************************************************
@@ -94,7 +134,7 @@ auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); 
  * @return Page id of the root of this tree
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return 0; }
+auto BPLUSTREE_TYPE::GetRootPageId() -> page_id_t { return root_page_id_; }
 
 /*****************************************************************************
  * UTILITIES AND DEBUG
