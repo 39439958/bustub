@@ -135,11 +135,23 @@ class LRUKReplacer {
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
-  [[maybe_unused]] size_t current_timestamp_{0};
-  [[maybe_unused]] size_t curr_size_{0};
-  [[maybe_unused]] size_t replacer_size_;
-  [[maybe_unused]] size_t k_;
+  class FrameInfo {
+   public:
+    int first_access_time_{0};
+    int access_count_{0};
+    int last_access_time_{0};
+    bool evictable_{true};
+
+   public:
+    FrameInfo() = default;
+  };
+  size_t current_timestamp_{0};
+  size_t curr_size_{0};
+  size_t curr_evictable_size_{0};
+  size_t replacer_size_;
+  size_t k_;
   std::mutex latch_;
+  std::unordered_map<frame_id_t, FrameInfo> lru_map_;
 };
 
 }  // namespace bustub
