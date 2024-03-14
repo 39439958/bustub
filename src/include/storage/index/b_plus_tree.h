@@ -54,6 +54,15 @@ class BPlusTree {
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
+  // return leaf page
+  auto GetLeafPage(const KeyType &key) -> Page *;
+
+  // split internel page or leaf page
+  auto Split(BPlusTreePage *page) -> BPlusTreePage *;
+
+  // after split, reset two node
+  void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
+
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
 

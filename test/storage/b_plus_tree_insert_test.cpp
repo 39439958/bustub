@@ -127,7 +127,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest2) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest3) {
+TEST(BPlusTreeTests, InsertTest3) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -154,7 +154,6 @@ TEST(BPlusTreeTests, DISABLED_InsertTest3) {
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
-
   std::vector<RID> rids;
   for (auto key : keys) {
     rids.clear();
