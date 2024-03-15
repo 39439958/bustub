@@ -10,13 +10,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 
 #include "buffer/buffer_pool_manager.h"
+#include "common/config.h"
 #include "common/exception.h"
-#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/b_plus_tree_internal_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 /*****************************************************************************
@@ -46,13 +48,12 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) { array_[index].first = key; }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType&value) { array_[index].second = value; }
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(int index, const ValueType &value) { array_[index].second = value; }
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyComparator &comparator) const -> ValueType {
-  auto target = std::lower_bound(array_ + 1, array_ + GetSize(), key, [&comparator](const auto &pair, auto key){
-    return comparator(pair.first, key) < 0;
-  });
+  auto target = std::lower_bound(array_ + 1, array_ + GetSize(), key,
+                                 [&comparator](const auto &pair, auto key) { return comparator(pair.first, key) < 0; });
   if (target == array_ + GetSize()) {
     return ValueAt(GetSize() - 1);
   }
@@ -65,8 +66,14 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCompara
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *dst_page, BufferPoolManager *bpm) {
   int new_size = GetMinSize();
-  dst_page->CopyData(array_ + new_size, GetSize() - new_size, bpm);
+  dst_page->CopyData(array_ + new_size , GetSize() - new_size, bpm);
   SetSize(new_size);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveALLTo(BPlusTreeInternalPage *dst_page, BufferPoolManager *bpm) {
+  dst_page->CopyData(array_, GetSize(), bpm);
+  SetSize(0);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -79,6 +86,37 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyData(MappingType *items, int size, Buff
     internal->SetParentPageId(GetPageId());
     bpm->UnpinPage(page->GetPageId(), true);
   }
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) -> void {
+  std::move(array_ + index + 1, array_ + GetSize(), array_ + index);
+  IncreaseSize(-1);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertToStart(const KeyType &key, const ValueType &value, BufferPoolManager *bpm) {
+  int size = GetSize();
+  std::move_backward(array_, array_ + size, array_ + 1);
+  array_[0] = {key, value};
+  IncreaseSize(1);
+  auto child_page_id = reinterpret_cast<page_id_t>(value);
+  Page *child_page = bpm->FetchPage(child_page_id);
+  auto *child = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+  child->SetParentPageId(GetPageId());
+  bpm->UnpinPage(child_page_id, true);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertToEnd(const KeyType &key, const ValueType &value, BufferPoolManager *bpm) {
+  int size = GetSize();
+  array_[size] = {key, value};
+  IncreaseSize(1);
+  auto child_page_id = reinterpret_cast<page_id_t>(value);
+  Page *child_page = bpm->FetchPage(child_page_id);
+  auto *child = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+  child->SetParentPageId(GetPageId());
+  bpm->UnpinPage(child_page_id, true);
 }
 
 /*

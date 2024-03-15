@@ -63,6 +63,18 @@ class BPlusTree {
   // after split, reset two node
   void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
 
+  // steal node from the bro in left or right, or merge left or right
+  void RedistributeOrMerge(BPlusTreePage *node);
+
+  // steal from left
+  void RedistributeLeft(BPlusTreePage *left_node, BPlusTreePage *node, InternalPage *parent, int index);
+
+  // steal from right
+  void RedistributeRight(BPlusTreePage *right_node, BPlusTreePage *node, InternalPage *parent, int index);
+
+  // merge left node or right node with parcent node
+  void Merge(BPlusTreePage *des_node, BPlusTreePage *src_node, InternalPage *parent, int index);
+
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
 
