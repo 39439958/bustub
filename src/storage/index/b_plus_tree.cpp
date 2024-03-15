@@ -117,7 +117,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Split(BPlusTreePage *page) -> BPlusTreePage *{
+auto BPLUSTREE_TYPE::Split(BPlusTreePage *page) -> BPlusTreePage * {
   page_id_t new_page_id;
   Page *new_page = buffer_pool_manager_->NewPage(&new_page_id);
   if (new_page == nullptr) {
@@ -209,6 +209,8 @@ void BPLUSTREE_TYPE::RedistributeOrMerge(BPlusTreePage *node) {
   // if this node is root, return
   if (node->IsRootPage()) {
     return;
+
+    // switch root???
   }
 
   // steal
@@ -234,7 +236,7 @@ void BPLUSTREE_TYPE::RedistributeOrMerge(BPlusTreePage *node) {
     Page *right_subling_page = buffer_pool_manager_->FetchPage(right_subling_id);
     auto *right_subling = reinterpret_cast<BPlusTreePage *>(right_subling_page->GetData());
     if (right_subling->GetSize() > right_subling->GetMinSize()) {
-      RedistributeRight(right_subling, node, parent, index);
+      RedistributeRight(right_subling, node, parent, index + 1);
       buffer_pool_manager_->UnpinPage(right_subling_id, true);
       buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
       return;
@@ -275,6 +277,14 @@ void BPLUSTREE_TYPE::Merge(BPlusTreePage *des_node, BPlusTreePage *src_node, Int
   }
   parent->Remove(index);
   if (parent->GetSize() < parent->GetMinSize()) {
+    // switch root
+    if (parent->IsRootPage() && parent->GetSize() == 1) {
+      root_page_id_ = parent->ValueAt(0);
+      auto *des_page = reinterpret_cast<InternalPage *>(des_node);
+      des_page->SetParentPageId(INVALID_PAGE_ID);
+      parent->SetSize(0);
+      UpdateRootPageId(0);
+    }
     RedistributeOrMerge(parent);
   }
 }
@@ -315,12 +325,12 @@ void BPLUSTREE_TYPE::RedistributeRight(BPlusTreePage *right_node, BPlusTreePage 
   } else {
     auto *right_subling = reinterpret_cast<InternalPage *>(right_node);
     auto *parsent = reinterpret_cast<InternalPage *>(node);
-    int right_index = 1;
-    key = right_subling->KeyAt(right_index);
-    parsent->InsertToEnd(key, right_subling->ValueAt(right_index), buffer_pool_manager_);
-    right_subling->IncreaseSize(-1);
+    right_subling->SetKeyAt(0, parent->KeyAt(index));
+    key = right_subling->KeyAt(1);
+    parsent->InsertToEnd(right_subling->KeyAt(0), right_subling->ValueAt(0), buffer_pool_manager_);
+    right_subling->Remove(0);
   }
-  parent->SetKeyAt(index + 1, key);
+  parent->SetKeyAt(index, key);
 }
 
 /*****************************************************************************

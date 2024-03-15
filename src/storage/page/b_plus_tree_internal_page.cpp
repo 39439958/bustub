@@ -66,14 +66,26 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyCompara
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *dst_page, BufferPoolManager *bpm) {
   int new_size = GetMinSize();
-  dst_page->CopyData(array_ + new_size , GetSize() - new_size, bpm);
+  dst_page->CopyData(array_ + new_size, GetSize() - new_size, bpm);
   SetSize(new_size);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveALLTo(BPlusTreeInternalPage *dst_page, BufferPoolManager *bpm) {
-  dst_page->CopyData(array_, GetSize(), bpm);
+  dst_page->CopyDataToEnd(array_, GetSize(), bpm);
   SetSize(0);
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyDataToEnd(MappingType *items, int size, BufferPoolManager *bpm) {
+  std::copy(items, items + size, array_ + GetSize());
+  for (int index = GetSize() - 1; index < size + GetSize(); index++) {
+    Page *page = bpm->FetchPage(ValueAt(index));
+    auto *internal = reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
+    internal->SetParentPageId(GetPageId());
+    bpm->UnpinPage(page->GetPageId(), true);
+  }
+  IncreaseSize(size);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
