@@ -81,6 +81,7 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
+  std::cout << "Insert operation, key: " << key.ToString() << ", value: " << value.GetSlotNum() << std::endl;
   // if tree is empty, create a root node
   if (IsEmpty()) {
     Page *page_ptr = buffer_pool_manager_->NewPage(&root_page_id_);
@@ -108,8 +109,10 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   }
   // split
   auto *new_leaf_page_ptr = reinterpret_cast<LeafPage *>(Split(leaf_page_ptr));
+
   new_leaf_page_ptr->SetNextPageId(leaf_page_ptr->GetNextPageId());
   leaf_page_ptr->SetNextPageId(new_leaf_page_ptr->GetPageId());
+
   InsertToParent(leaf_page_ptr, new_leaf_page_ptr, new_leaf_page_ptr->KeyAt(0));
   buffer_pool_manager_->UnpinPage(leaf_page_ptr->GetPageId(), true);
   buffer_pool_manager_->UnpinPage(new_leaf_page_ptr->GetPageId(), true);
@@ -135,6 +138,7 @@ auto BPLUSTREE_TYPE::Split(BPlusTreePage *page) -> BPlusTreePage * {
     new_internel->Init(new_page_id, internal_page->GetParentPageId(), internal_max_size_);
     internal_page->MoveHalfTo(new_internel, buffer_pool_manager_);
   }
+  std::cout << "split" << page->GetPageId() << " and " << new_page->GetPageId() << std::endl;
   return reinterpret_cast<BPlusTreePage *>(new_page->GetData());  // switch new_leaf is ok too
 }
 
