@@ -43,7 +43,7 @@ class BPlusTree {
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
 
   // Returns true if this B+ tree has no keys and values.
-  auto IsEmpty() const -> bool;
+  auto IsEmpty() -> bool;
 
   // Insert a key-value pair into this B+ tree.
   auto Insert(const KeyType &key, const ValueType &value, Transaction *transaction = nullptr) -> bool;
@@ -54,8 +54,16 @@ class BPlusTree {
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
-  // return leaf page
   auto GetLeafPage(const KeyType &key) -> Page *;
+
+  // return leaf page for find
+  auto GetLeafPageForFind(const KeyType &key, Transaction *transaction) -> Page *;
+
+  // return leaf page for incert
+  auto GetLeafPageForIncert(const KeyType &key, Transaction *transaction) -> Page *;
+
+  // return leaf page for remove
+  auto GetLeafPageForRemove(const KeyType &key, Transaction *transaction) -> Page *;
 
   // split internel page or leaf page
   auto Split(BPlusTreePage *page) -> BPlusTreePage *;
@@ -64,7 +72,7 @@ class BPlusTree {
   void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
 
   // steal node from the bro in left or right, or merge left or right
-  void RedistributeOrMerge(BPlusTreePage *node);
+  void RedistributeOrMerge(BPlusTreePage *node, Transaction *transaction);
 
   // steal from left
   void RedistributeLeft(BPlusTreePage *left_node, BPlusTreePage *node, InternalPage *parent, int index);
@@ -73,10 +81,13 @@ class BPlusTree {
   void RedistributeRight(BPlusTreePage *right_node, BPlusTreePage *node, InternalPage *parent, int index);
 
   // merge left node or right node with parcent node
-  void Merge(BPlusTreePage *des_node, BPlusTreePage *src_node, InternalPage *parent, int index);
+  void Merge(BPlusTreePage *des_node, BPlusTreePage *src_node, InternalPage *parent, int index,
+             Transaction *transaction);
 
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
+
+  auto ReleaseAndUnpin(Transaction *transaction) -> void;
 
   // index iterator
   auto Begin() -> INDEXITERATOR_TYPE;
@@ -110,6 +121,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  ReaderWriterLatch latch_;
 };
 
 }  // namespace bustub
