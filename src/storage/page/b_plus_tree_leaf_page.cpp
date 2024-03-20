@@ -127,13 +127,13 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::CopyData(MappingType *items, int size) -> void 
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value, const KeyComparator &comparator) const
     -> bool {
   int index = KeyIndex(key, comparator);
   if (index == GetSize() || comparator(key, KeyAt(index)) != 0) {
     return false;
   }
-  *value = ValueAt(index);
+  value = ValueAt(index);
   return true;
 }
 

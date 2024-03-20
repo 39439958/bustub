@@ -38,6 +38,8 @@ class BPlusTree {
   using InternalPage = BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator>;
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
+  enum class OperationType { FIND, INSERT, REMOVE };
+
  public:
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
@@ -54,22 +56,33 @@ class BPlusTree {
   // return the value associated with a given key
   auto GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction = nullptr) -> bool;
 
-  auto GetLeafPage(const KeyType &key) -> Page *;
+  // return leaf page
+  auto GetLeafPage(const KeyType &key, Transaction *transaction, OperationType type) -> Page *;
 
-  // return leaf page for find
-  auto GetLeafPageForFind(const KeyType &key, Transaction *transaction) -> Page *;
+  // return leaf for find
+  auto GetLeafPageForFind(const KeyType &key) -> Page *;
 
-  // return leaf page for incert
-  auto GetLeafPageForIncert(const KeyType &key, Transaction *transaction) -> Page *;
+  // return leaf for iterator
+  auto GetLeafPageForIterator(const KeyType &key) -> Page *;
 
-  // return leaf page for remove
-  auto GetLeafPageForRemove(const KeyType &key, Transaction *transaction) -> Page *;
+  // lock root
+  void LockRoot(Transaction *transaction, OperationType type);
+
+  // check safe page
+  auto IsSafePage(BPlusTreePage *page, OperationType type) const -> bool;
+
+  void LockPage(Page *page, Transaction *transaction, OperationType type);
+
+  void UnlockAllPages(Transaction *transaction, OperationType type);
+
+  auto GetPageFromSet(page_id_t page_id, Transaction *transaction) -> Page *;
 
   // split internel page or leaf page
   auto Split(BPlusTreePage *page) -> BPlusTreePage *;
 
   // after split, reset two node
-  void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key);
+  void InsertToParent(BPlusTreePage *old_page, BPlusTreePage *split_page, const KeyType &split_key,
+                      Transaction *transaction);
 
   // steal node from the bro in left or right, or merge left or right
   void RedistributeOrMerge(BPlusTreePage *node, Transaction *transaction);
@@ -86,8 +99,6 @@ class BPlusTree {
 
   // return the page id of the root node
   auto GetRootPageId() -> page_id_t;
-
-  auto ReleaseAndUnpin(Transaction *transaction) -> void;
 
   // index iterator
   auto Begin() -> INDEXITERATOR_TYPE;
@@ -121,7 +132,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
-  ReaderWriterLatch latch_;
+  std::shared_mutex root_mutex_;
 };
 
 }  // namespace bustub
