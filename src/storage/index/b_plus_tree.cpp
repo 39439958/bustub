@@ -495,6 +495,9 @@ void BPLUSTREE_TYPE::RedistributeRight(BPlusTreePage *right_node, BPlusTreePage 
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(nullptr, nullptr, 0);
+  }
   Page *page = buffer_pool_manager_->FetchPage(GetRootPageId());
   auto page_ptr = reinterpret_cast<BPlusTreePage *>(page->GetData());
   // get left node
@@ -519,6 +522,9 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(nullptr, nullptr, 0);
+  }
   Page *page_ptr = GetLeafPageForIterator(key);
   auto *leaf_page_ptr = reinterpret_cast<LeafPage *>(page_ptr->GetData());
   int index = leaf_page_ptr->KeyIndex(key, comparator_);
@@ -533,6 +539,9 @@ auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE {
+  if (IsEmpty()) {
+    return INDEXITERATOR_TYPE(nullptr, nullptr, 0);
+  }
   Page *page = buffer_pool_manager_->FetchPage(GetRootPageId());
   auto page_ptr = reinterpret_cast<BPlusTreePage *>(page->GetData());
   // get left node
