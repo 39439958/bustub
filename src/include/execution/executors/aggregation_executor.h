@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <climits>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -24,6 +25,7 @@
 #include "execution/expressions/abstract_expression.h"
 #include "execution/plans/aggregation_plan.h"
 #include "storage/table/tuple.h"
+#include "type/value.h"
 #include "type/value_factory.h"
 
 namespace bustub {
@@ -72,12 +74,41 @@ class SimpleAggregationHashTable {
    */
   void CombineAggregateValues(AggregateValue *result, const AggregateValue &input) {
     for (uint32_t i = 0; i < agg_exprs_.size(); i++) {
+      auto &result_value = result->aggregates_[i];
+      auto &input_value = input.aggregates_[i];
       switch (agg_types_[i]) {
         case AggregationType::CountStarAggregate:
+          result_value = result_value.Add(ValueFactory::GetIntegerValue(1));
+          break;
         case AggregationType::CountAggregate:
+          if (result_value.IsNull()) {
+            result_value = ValueFactory::GetIntegerValue(0);
+          }
+          if (!input_value.IsNull()) {
+            result_value = result_value.Add(ValueFactory::GetIntegerValue(1));
+          }
+          break;
         case AggregationType::SumAggregate:
+          if (result_value.IsNull()) {
+            result_value = ValueFactory::GetIntegerValue(0);
+          }
+          if (!input_value.IsNull()) {
+            result_value = result_value.Add(input_value);
+          }
+          break;
         case AggregationType::MinAggregate:
+          if (result_value.IsNull()) {
+            result_value = input_value;
+          } else if (!input_value.IsNull()) {
+            result_value = result_value.Min(input_value);
+          }
+          break;
         case AggregationType::MaxAggregate:
+          if (result_value.IsNull()) {
+            result_value = input_value;
+          } else if (!input_value.IsNull()) {
+            result_value = result_value.Max(input_value);
+          }
           break;
       }
     }
@@ -94,6 +125,14 @@ class SimpleAggregationHashTable {
     }
     CombineAggregateValues(&ht_[agg_key], agg_val);
   }
+
+  /**
+   * process the empty table
+   */
+  void InsertInitialCombine() {
+    ht_.insert({{std::vector<Value>()}, GenerateInitialAggregateValue()});
+  }
+
 
   /**
    * Clear the hash table
@@ -134,6 +173,9 @@ class SimpleAggregationHashTable {
 
   /** @return Iterator to the end of the hash table */
   auto End() -> Iterator { return Iterator{ht_.cend()}; }
+
+  /** @return the size of ht_*/
+  auto Size() -> int { return ht_.size(); }
 
  private:
   /** The hash table is just a map from aggregate keys to aggregate values */
@@ -201,8 +243,8 @@ class AggregationExecutor : public AbstractExecutor {
   /** The child executor that produces tuples over which the aggregation is computed */
   std::unique_ptr<AbstractExecutor> child_;
   /** Simple aggregation hash table */
-  // TODO(Student): Uncomment SimpleAggregationHashTable aht_;
+  SimpleAggregationHashTable aht_;
   /** Simple aggregation hash table iterator */
-  // TODO(Student): Uncomment SimpleAggregationHashTable::Iterator aht_iterator_;
+  SimpleAggregationHashTable::Iterator aht_iterator_;
 };
 }  // namespace bustub
