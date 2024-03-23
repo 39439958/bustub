@@ -39,7 +39,8 @@ auto DeleteExecutor::Next(Tuple *tuple, RID *rid) -> bool {
     auto *table_heap = table_info->table_.get();
     table_heap->MarkDelete(*rid, exec_ctx_->GetTransaction());
     for (const auto &index : index_info) {
-      Tuple key_tuple = tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs());
+      Tuple key_tuple =
+          tuple->KeyFromTuple(child_executor_->GetOutputSchema(), index->key_schema_, index->index_->GetKeyAttrs());
       index->index_->DeleteEntry(key_tuple, *rid, exec_ctx_->GetTransaction());
     }
     ++delete_count;

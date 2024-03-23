@@ -129,10 +129,7 @@ class SimpleAggregationHashTable {
   /**
    * process the empty table
    */
-  void InsertInitialCombine() {
-    ht_.insert({{std::vector<Value>()}, GenerateInitialAggregateValue()});
-  }
-
+  void InsertInitialCombine() { ht_.insert({{std::vector<Value>()}, GenerateInitialAggregateValue()}); }
 
   /**
    * Clear the hash table

@@ -33,11 +33,10 @@ NestedLoopJoinExecutor::NestedLoopJoinExecutor(ExecutorContext *exec_ctx, const 
   if (!(plan->GetJoinType() == JoinType::LEFT || plan->GetJoinType() == JoinType::INNER)) {
     // Note for 2022 Fall: You ONLY need to implement left join and inner join.
     throw bustub::NotImplementedException(fmt::format("join type {} not supported", plan->GetJoinType()));
-    
   }
 }
 
-void NestedLoopJoinExecutor::Init() { 
+void NestedLoopJoinExecutor::Init() {
   left_executor_->Init();
   right_executor_->Init();
 
@@ -73,17 +72,17 @@ void NestedLoopJoinExecutor::Init() {
       }
     }
     if (!join_success && plan_->GetJoinType() == JoinType::LEFT) {
-        std::vector<Value> values;
-        auto left_count = left_schema.GetColumnCount();
-        auto right_count = right_schema.GetColumnCount();
-        for (uint32_t i = 0; i < left_count; i++) {
-          values.push_back(left_tuple.GetValue(&left_schema, i));
-        }
-        for (uint32_t i = 0; i < right_count; i++) {
-          values.push_back(ValueFactory::GetNullValueByType(right_schema.GetColumn(i).GetType()));
-        }
-        tuples_.emplace_back(values, &plan_->OutputSchema());
+      std::vector<Value> values;
+      auto left_count = left_schema.GetColumnCount();
+      auto right_count = right_schema.GetColumnCount();
+      for (uint32_t i = 0; i < left_count; i++) {
+        values.push_back(left_tuple.GetValue(&left_schema, i));
       }
+      for (uint32_t i = 0; i < right_count; i++) {
+        values.push_back(ValueFactory::GetNullValueByType(right_schema.GetColumn(i).GetType()));
+      }
+      tuples_.emplace_back(values, &plan_->OutputSchema());
+    }
   }
 }
 

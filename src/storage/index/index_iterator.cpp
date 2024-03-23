@@ -18,9 +18,9 @@ INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, LeafPage *leaf, int in
     : bpm_(bpm), leaf_(leaf), index_(index) {}
 
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::~IndexIterator() { 
+INDEXITERATOR_TYPE::~IndexIterator() {
   if (bpm_ != nullptr) {
-    bpm_->UnpinPage(leaf_->GetPageId(), false); 
+    bpm_->UnpinPage(leaf_->GetPageId(), false);
   }
 };  // NOLINT
 
@@ -34,6 +34,9 @@ auto INDEXITERATOR_TYPE::operator*() -> const MappingType & { return leaf_->GetI
 
 INDEX_TEMPLATE_ARGUMENTS
 auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
+  if (leaf_ == nullptr) {
+    return *this;
+  }
   if (leaf_->GetNextPageId() != INVALID_PAGE_ID && index_ == leaf_->GetSize() - 1) {
     page_id_t next_page_id = leaf_->GetNextPageId();
     bpm_->UnpinPage(leaf_->GetPageId(), false);

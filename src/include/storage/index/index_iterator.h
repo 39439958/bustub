@@ -35,10 +35,7 @@ class IndexIterator {
   auto operator++() -> IndexIterator &;
 
   auto operator==(const IndexIterator &itr) const -> bool {
-    if (leaf_ == nullptr && itr.leaf_ == nullptr) {
-      return true;
-    }
-    return (leaf_->GetPageId() == itr.leaf_->GetPageId() && index_ == itr.index_);
+    return leaf_ == nullptr || (leaf_->GetPageId() == itr.leaf_->GetPageId() && index_ == itr.index_);
   }
 
   auto operator!=(const IndexIterator &itr) const -> bool { return !(*this == itr); }
