@@ -64,7 +64,7 @@ class LockManager {
   class LockRequestQueue {
    public:
     /** List of lock requests for the same resource (table or row) */
-    std::list<LockRequest *> request_queue_;
+    std::list<std::shared_ptr<LockRequest>> request_queue_;
     /** For notifying blocked transactions on this rid */
     std::condition_variable cv_;
     /** txn_id of an upgrading transaction (if any) */
@@ -297,15 +297,21 @@ class LockManager {
    */
   auto RunCycleDetection() -> void;
 
+  auto GrantLock(const std::shared_ptr<LockRequest> &lock_request, const std::shared_ptr<LockRequestQueue> &lock_request_queue) -> bool;
+
+  auto InsertOrDeleteTableLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert) -> void;
+
+  auto InsertOrDeleteRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert) -> void;
+
  private:
   /** Fall 2022 */
   /** Structure that holds lock requests for a given table oid */
-  std::unordered_map<table_oid_t, LockRequestQueue> table_lock_map_;
+  std::unordered_map<table_oid_t, std::shared_ptr<LockRequestQueue>> table_lock_map_;
   /** Coordination */
   std::mutex table_lock_map_latch_;
 
   /** Structure that holds lock requests for a given RID */
-  std::unordered_map<RID, LockRequestQueue> row_lock_map_;
+  std::unordered_map<RID, std::shared_ptr<LockRequestQueue>> row_lock_map_;
   /** Coordination */
   std::mutex row_lock_map_latch_;
 

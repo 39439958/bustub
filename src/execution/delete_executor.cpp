@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
+#include "storage/index/index.h"
 
 #include "execution/executors/delete_executor.h"
 

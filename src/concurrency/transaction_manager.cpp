@@ -18,6 +18,7 @@
 #include <unordered_set>
 
 #include "catalog/catalog.h"
+#include "concurrency/transaction.h"
 #include "storage/table/table_heap.h"
 namespace bustub {
 
@@ -58,7 +59,6 @@ void TransactionManager::Commit(Transaction *txn) {
     write_set->pop_back();
   }
   write_set->clear();
-
   // Release all the locks.
   ReleaseLocks(txn);
   // Release the global transaction latch.
