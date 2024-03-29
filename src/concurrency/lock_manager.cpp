@@ -13,6 +13,9 @@
 #include "concurrency/lock_manager.h"
 #include <memory>
 #include <mutex>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "common/config.h"
 #include "concurrency/transaction.h"
@@ -106,7 +109,15 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
       lock_request_queue->request_queue_.insert(iter, upgrade_lock_request);
 
       std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
-      lock_request_queue->cv_.wait(lock, [&]() { return GrantLock(upgrade_lock_request, lock_request_queue); });
+      while (!GrantLock(upgrade_lock_request, lock_request_queue)) {
+        lock_request_queue->cv_.wait(lock);
+        if (txn->GetState() == TransactionState::ABORTED) {
+          lock_request_queue->upgrading_ = INVALID_TXN_ID;
+          lock_request_queue->request_queue_.remove(upgrade_lock_request);
+          lock_request_queue->cv_.notify_all();
+          return false;
+        }
+      }
 
       upgrade_lock_request->granted_ = true;
       lock_request_queue->upgrading_ = INVALID_TXN_ID;
@@ -120,7 +131,15 @@ auto LockManager::LockTable(Transaction *txn, LockMode lock_mode, const table_oi
   lock_request_queue->request_queue_.push_back(lock_request);
 
   std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
-  lock_request_queue->cv_.wait(lock, [&]() { return GrantLock(lock_request, lock_request_queue); });
+  while (!GrantLock(lock_request, lock_request_queue)) {
+    lock_request_queue->cv_.wait(lock);
+    if (txn->GetState() == TransactionState::ABORTED) {
+      lock_request_queue->upgrading_ = INVALID_TXN_ID;
+      lock_request_queue->request_queue_.remove(lock_request);
+      lock_request_queue->cv_.notify_all();
+      return false;
+    }
+  }
 
   lock_request->granted_ = true;
   InsertOrDeleteTableLockSet(txn, lock_request, true);
@@ -276,7 +295,15 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
       lock_request_queue->request_queue_.insert(iter, upgrade_lock_request);
 
       std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
-      lock_request_queue->cv_.wait(lock, [&]() { return GrantLock(upgrade_lock_request, lock_request_queue); });
+      while (!GrantLock(upgrade_lock_request, lock_request_queue)) {
+        lock_request_queue->cv_.wait(lock);
+        if (txn->GetState() == TransactionState::ABORTED) {
+          lock_request_queue->upgrading_ = INVALID_TXN_ID;
+          lock_request_queue->request_queue_.remove(upgrade_lock_request);
+          lock_request_queue->cv_.notify_all();
+          return false;
+        }
+      }
 
       upgrade_lock_request->granted_ = true;
       lock_request_queue->upgrading_ = INVALID_TXN_ID;
@@ -290,7 +317,15 @@ auto LockManager::LockRow(Transaction *txn, LockMode lock_mode, const table_oid_
   lock_request_queue->request_queue_.push_back(lock_request);
 
   std::unique_lock<std::mutex> lock(lock_request_queue->latch_, std::adopt_lock);
-  lock_request_queue->cv_.wait(lock, [&]() { return GrantLock(lock_request, lock_request_queue); });
+  while (!GrantLock(lock_request, lock_request_queue)) {
+    lock_request_queue->cv_.wait(lock);
+    if (txn->GetState() == TransactionState::ABORTED) {
+      lock_request_queue->upgrading_ = INVALID_TXN_ID;
+      lock_request_queue->request_queue_.remove(lock_request);
+      lock_request_queue->cv_.notify_all();
+      return false;
+    }
+  }
 
   lock_request->granted_ = true;
   InsertOrDeleteRowLockSet(txn, lock_request, true);
@@ -309,7 +344,7 @@ auto LockManager::UnlockRow(Transaction *txn, const table_oid_t &oid, const RID 
   lock_request_queue->latch_.lock();
   row_lock_map_latch_.unlock();
 
-  // 3.unlock
+  // 2.unlock
   for (auto lock_request : lock_request_queue->request_queue_) {
     if (lock_request->txn_id_ == txn->GetTransactionId()) {
       if (txn->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ && txn->GetState() == TransactionState::GROWING) {
@@ -334,21 +369,159 @@ auto LockManager::UnlockRow(Transaction *txn, const table_oid_t &oid, const RID 
   throw TransactionAbortException(txn->GetTransactionId(), AbortReason::ATTEMPTED_UNLOCK_BUT_NO_LOCK_HELD);
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
+  waits_for_latch_.lock();
+  if (waits_for_.find(t1) == waits_for_.end()) {
+    waits_for_.insert({t1, {t2}});
+    txn_set_.emplace(t1);
+    txn_set_.emplace(t2);
+    waits_for_latch_.unlock();
+    return;
+  }
+  txn_set_.emplace(t1);
+  txn_set_.emplace(t2);
+  waits_for_[t1].push_back(t2);
+  waits_for_latch_.unlock();
+}
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {}
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
+  waits_for_latch_.lock();
+  if (waits_for_.find(t1) == waits_for_.end()) {
+    waits_for_latch_.unlock();
+    return;
+  }
+  auto &wait_vector = waits_for_[t1];
+  for (auto iter = wait_vector.begin(); iter != wait_vector.end(); iter++) {
+    if (*iter == t2) {
+      wait_vector.erase(iter);
+      waits_for_latch_.unlock();
+      return;
+    }
+  }
+  waits_for_latch_.unlock();
+}
 
-auto LockManager::HasCycle(txn_id_t *txn_id) -> bool { return false; }
+auto LockManager::HasCycle(txn_id_t *txn_id) -> bool { 
+  for (auto txn : txn_set_) {
+    if (DFS(txn)) {
+      *txn_id = *path_set_.begin();
+      for (auto node : path_set_) {
+        *txn_id = std::max(*txn_id, node);
+      }
+      path_set_.clear();
+      return true;
+    }
+    path_set_.clear();
+  }
+  return false;
+}
+
+auto LockManager::DFS(txn_id_t t1) -> bool {
+  if (finish_set_.find(t1) != finish_set_.end()) {
+    return false;
+  }
+  path_set_.insert(t1);
+
+  std::vector<txn_id_t> &next_node_vector = waits_for_[t1];
+  std::sort(next_node_vector.begin(), next_node_vector.end());
+  for (auto next_node : next_node_vector) {
+    if (path_set_.find(next_node) != path_set_.end()) {
+      return true;
+    }
+    if (DFS(next_node)) {
+      return true;
+    }
+  }
+  
+  path_set_.erase(t1);
+  finish_set_.insert(t1);
+  return false;
+}
 
 auto LockManager::GetEdgeList() -> std::vector<std::pair<txn_id_t, txn_id_t>> {
-  std::vector<std::pair<txn_id_t, txn_id_t>> edges(0);
+  std::vector<std::pair<txn_id_t, txn_id_t>> edges;
+  waits_for_latch_.lock();
+  for (auto &pair : waits_for_) {
+    txn_id_t t1 = pair.first;
+    for (auto t2 : pair.second) {
+      edges.emplace_back(t1, t2);
+    }
+  }
+  waits_for_latch_.unlock();
   return edges;
 }
 
 void LockManager::RunCycleDetection() {
   while (enable_cycle_detection_) {
     std::this_thread::sleep_for(cycle_detection_interval);
-    {  // TODO(students): detect deadlock
+    table_lock_map_latch_.lock();
+    row_lock_map_latch_.lock();
+    for (auto &pair : table_lock_map_) {
+      std::unordered_set<txn_id_t> granted_txn;
+      pair.second->latch_.lock();
+      for (const auto &lock_request : pair.second->request_queue_) {
+        if (lock_request->granted_) {
+          granted_txn.insert(lock_request->txn_id_);
+        } else {
+          for (auto txn_id : granted_txn) {
+            map_txn_oid_.emplace(lock_request->txn_id_, lock_request->oid_);
+            AddEdge(lock_request->txn_id_, txn_id);
+          }
+        }
+      }
+      pair.second->latch_.unlock();
+    }
+    for (auto &pair : row_lock_map_) {
+      std::unordered_set<txn_id_t> granted_set;
+      pair.second->latch_.lock();
+      for (auto const &lock_request : pair.second->request_queue_) {
+        if (lock_request->granted_) {
+          granted_set.emplace(lock_request->txn_id_);
+        } else {
+          for (auto txn_id : granted_set) {
+            map_txn_rid_.emplace(lock_request->txn_id_, lock_request->rid_);
+            AddEdge(lock_request->txn_id_, txn_id);
+          }
+        }
+      }
+      pair.second->latch_.unlock();
+    }
+    row_lock_map_latch_.unlock();
+    table_lock_map_latch_.unlock();
+
+    txn_id_t txn_id;
+      while (HasCycle(&txn_id)) {
+        Transaction *txn = TransactionManager::GetTransaction(txn_id);
+        txn->SetState(TransactionState::ABORTED);
+        DeleteNode(txn_id);
+
+        if (map_txn_oid_.count(txn_id) > 0) {
+          table_lock_map_[map_txn_oid_[txn_id]]->latch_.lock();
+          table_lock_map_[map_txn_oid_[txn_id]]->cv_.notify_all();
+          table_lock_map_[map_txn_oid_[txn_id]]->latch_.unlock();
+        }
+
+        if (map_txn_rid_.count(txn_id) > 0) {
+          row_lock_map_[map_txn_rid_[txn_id]]->latch_.lock();
+          row_lock_map_[map_txn_rid_[txn_id]]->cv_.notify_all();
+          row_lock_map_[map_txn_rid_[txn_id]]->latch_.unlock();
+        }
+      }
+
+    waits_for_.clear();
+    finish_set_.clear();
+    txn_set_.clear();
+    map_txn_oid_.clear();
+    map_txn_rid_.clear();
+  }
+}
+
+auto LockManager::DeleteNode(txn_id_t txn_id) -> void {
+  waits_for_.erase(txn_id);
+
+  for (auto a_txn_id : txn_set_) {
+    if (a_txn_id != txn_id) {
+      RemoveEdge(a_txn_id, txn_id);
     }
   }
 }

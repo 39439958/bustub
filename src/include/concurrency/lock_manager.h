@@ -21,6 +21,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <set>
 
 #include "common/config.h"
 #include "common/rid.h"
@@ -303,6 +304,10 @@ class LockManager {
 
   auto InsertOrDeleteRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert) -> void;
 
+  auto DFS(txn_id_t t1) ->bool;
+
+  auto DeleteNode(txn_id_t txn_id) -> void;
+
  private:
   /** Fall 2022 */
   /** Structure that holds lock requests for a given table oid */
@@ -320,6 +325,12 @@ class LockManager {
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
+
+  std::set<txn_id_t> finish_set_;
+  std::set<txn_id_t> txn_set_;
+  std::unordered_set<txn_id_t> path_set_;
+  std::unordered_map<txn_id_t, RID> map_txn_rid_;
+  std::unordered_map<txn_id_t, table_oid_t> map_txn_oid_;
 };
 
 }  // namespace bustub
