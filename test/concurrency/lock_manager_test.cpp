@@ -182,7 +182,7 @@ void RowLockTest1() {
   for (int i = 0; i < num_txns; i++) {
     threads.emplace_back(std::thread{task, i});
   }
-  
+
   for (int i = 0; i < num_txns; i++) {
     threads[i].join();
     delete txns[i];

@@ -62,5 +62,7 @@ class DeleteExecutor : public AbstractExecutor {
   std::unique_ptr<AbstractExecutor> child_executor_;
   /** The falg of delete*/
   bool delete_flag_;
+  TableInfo *table_info_;
+  std::vector<IndexInfo *> index_info_;
 };
 }  // namespace bustub

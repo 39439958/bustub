@@ -17,11 +17,11 @@
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
-#include <set>
 
 #include "common/config.h"
 #include "common/rid.h"
@@ -298,13 +298,16 @@ class LockManager {
    */
   auto RunCycleDetection() -> void;
 
-  auto GrantLock(const std::shared_ptr<LockRequest> &lock_request, const std::shared_ptr<LockRequestQueue> &lock_request_queue) -> bool;
+  auto GrantLock(const std::shared_ptr<LockRequest> &lock_request,
+                 const std::shared_ptr<LockRequestQueue> &lock_request_queue) -> bool;
 
-  auto InsertOrDeleteTableLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert) -> void;
+  auto InsertOrDeleteTableLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert)
+      -> void;
 
-  auto InsertOrDeleteRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert) -> void;
+  auto InsertOrDeleteRowLockSet(Transaction *txn, const std::shared_ptr<LockRequest> &lock_request, bool insert)
+      -> void;
 
-  auto DFS(txn_id_t t1) ->bool;
+  auto DFS(txn_id_t t1) -> bool;
 
   auto DeleteNode(txn_id_t txn_id) -> void;
 

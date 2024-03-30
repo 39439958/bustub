@@ -45,6 +45,8 @@ enum class ExceptionType {
   INCOMPATIBLE_TYPE = 8,
   /** Out of memory error */
   OUT_OF_MEMORY = 9,
+  /** Execution type*/
+  EXECUTION_TYPE = 10,
   /** Method not implemented. */
   NOT_IMPLEMENTED = 11,
 };
@@ -100,6 +102,8 @@ class Exception : public std::runtime_error {
         return "Incompatible type";
       case ExceptionType::OUT_OF_MEMORY:
         return "Out of Memory";
+      case ExceptionType::EXECUTION_TYPE:
+        return "EXECUTOR FAIL";
       case ExceptionType::NOT_IMPLEMENTED:
         return "Not implemented";
       default:
@@ -115,6 +119,12 @@ class NotImplementedException : public Exception {
  public:
   NotImplementedException() = delete;
   explicit NotImplementedException(const std::string &msg) : Exception(ExceptionType::NOT_IMPLEMENTED, msg) {}
+};
+
+class ExecutionException : public Exception {
+ public:
+  ExecutionException() = delete;
+  explicit ExecutionException(const std::string &msg) : Exception(ExceptionType::EXECUTION_TYPE, msg) {}
 };
 
 }  // namespace bustub
